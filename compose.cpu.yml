@@ -1,0 +1,35 @@
+# CPU deployment for development
+services:
+  embedding-service:
+    build:
+      context: ./services/embedding
+      dockerfile: docker/Dockerfile.cpu
+    container_name: rag-services-embedding-cpu
+    ports:
+      - "81051:81051"
+    volumes:
+      - huggingface-cache:/home/appuser/.cache/huggingface
+    environment:
+      - EMBEDDING_MODEL_NAME=google/embeddinggemma-300m
+      - DEVICE=cpu
+      - GRPC_PORT=81051
+      - GRPC_HOST=0.0.0.0
+      - LOG_LEVEL=INFO
+    restart: unless-stopped
+    healthcheck:
+      test: [
+        "CMD", "python", "-c", 
+        "import grpc; grpc.insecure_channel('localhost:81051').channel_ready_future().result(timeout=5)"
+      ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+
+volumes:
+  huggingface-cache:

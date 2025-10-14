@@ -1,0 +1,61 @@
+# CPU Dockerfile - Lightweight for development
+FROM python:3.13-slim as builder
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    gcc \
+    g++ \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install UV
+RUN pip install uv
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files
+COPY pyproject.toml ./
+
+# Install dependencies
+RUN uv pip install --system -e .
+
+# Compile proto files
+COPY proto/ ./proto/
+RUN python -m grpc_tools.protoc \
+    --proto_path=proto \
+    --python_out=src/embedding \
+    --grpc_python_out=src/embedding \
+    proto/embedding.proto
+
+# Runtime stage
+FROM python:3.13-slim as runtime
+
+# Create non-root user
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+# Set working directory
+WORKDIR /app
+
+# Copy installed packages from builder
+COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Copy application code
+COPY --from=builder /app/src ./src
+COPY --from=builder /app/proto ./proto
+
+# Set ownership
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
+
+# Expose port
+EXPOSE 81051
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
+    CMD python -c "import grpc; grpc.insecure_channel('localhost:81051').channel_ready_future().result(timeout=5)"
+
+# Run the server
+CMD ["python", "-m", "src.embedding.server"]
