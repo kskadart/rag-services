@@ -9,7 +9,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
-        case_sensitive=True,
+        case_sensitive=False,
         extra="ignore"
     )
     
@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     embedding_model_name: str = "google/embeddinggemma-300m"
     
     # Server settings (via env/compose)
-    grpc_port: int = 81051
+    grpc_port: int = 8351
     grpc_host: str = "0.0.0.0"
     device: str = "auto"  # auto, cuda, cpu
     

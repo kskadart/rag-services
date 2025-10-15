@@ -1,11 +1,9 @@
-"""Core embedding service implementation."""
-
 from typing import List, Optional
 import torch
 from transformers import AutoTokenizer, AutoModel
 import logging
 
-from .config import settings
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 

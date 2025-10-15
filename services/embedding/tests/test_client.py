@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 class EmbeddingClient:
     """Simple client for testing embedding service."""
     
-    def __init__(self, host: str = "localhost", port: int = 81051):
+    def __init__(self, host: str = "localhost", port: int = 8351):
         """
         Initialize client.
         

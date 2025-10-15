@@ -6,20 +6,20 @@ services:
       dockerfile: docker/Dockerfile.gpu
     container_name: rag-services-embedding-gpu
     ports:
-      - "81051:81051"
+      - "8351:8351"
     volumes:
       - huggingface-cache:/home/appuser/.cache/huggingface
     environment:
       - EMBEDDING_MODEL_NAME=google/embeddinggemma-300m
       - DEVICE=auto
-      - GRPC_PORT=81051
+      - GRPC_PORT=8351
       - GRPC_HOST=0.0.0.0
       - LOG_LEVEL=INFO
     restart: unless-stopped
     healthcheck:
       test: [
         "CMD", "python3.13", "-c", 
-        "import grpc; grpc.insecure_channel('localhost:81051').channel_ready_future().result(timeout=5)"
+        "import grpc; grpc.insecure_channel('localhost:8351').channel_ready_future().result(timeout=5)"
       ]
       interval: 30s
       timeout: 10s

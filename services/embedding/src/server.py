@@ -1,24 +1,23 @@
-"""gRPC server implementation for embedding service."""
-
 import grpc
 import logging
 from concurrent import futures
-from typing import Iterator
 
-# Import generated gRPC code (will be generated from proto)
-try:
-    from embedding_pb2 import (
+from grpc_health.v1 import health_pb2_grpc
+from grpc_health.v1 import health_pb2
+from grpc_health.v1.health import HealthServicer
+from grpc_reflection.v1alpha import reflection
+
+from src.embedding_pb2 import (
         EmbedTextRequest, EmbedTextResponse,
         EmbedBatchRequest, EmbedBatchResponse, EmbeddingVector,
         Empty, DimensionResponse, HealthResponse
-    )
-    from embedding_pb2_grpc import EmbeddingServiceServicer, add_EmbeddingServiceServicer_to_server
-except ImportError:
-    # Fallback for development - will be generated later
-    pass
-
-from .service import get_embedding_service
-from .config import settings
+)
+from src.embedding_pb2_grpc import (
+    EmbeddingServiceServicer, 
+    add_EmbeddingServiceServicer_to_server
+)
+from src.service import get_embedding_service
+from src.config import settings
 
 logger = logging.getLogger(__name__)
 
@@ -180,14 +179,11 @@ def serve():
     add_EmbeddingServiceServicer_to_server(EmbeddingServicer(), server)
     
     # Add health check service
-    from grpc_health.v1 import health_pb2_grpc
-    from grpc_health.v1.health import HealthServicer
+    
     health_servicer = HealthServicer()
     health_pb2_grpc.add_HealthServicer_to_server(health_servicer, server)
     health_servicer.set("embedding.EmbeddingService", health_pb2.HealthCheckResponse.SERVING)
-    
-    # Add reflection for debugging
-    from grpc_reflection.v1alpha import reflection
+        
     service_names = (
         "embedding.EmbeddingService",
         "grpc.health.v1.Health",

@@ -1,4 +1,3 @@
-# GPU Dockerfile - CUDA support for production
 FROM nvidia/cuda:12.1.0-cudnn8-devel-ubuntu22.04 as builder
 
 # Install Python 3.13
@@ -20,22 +19,32 @@ RUN python3.13 -m pip install uv
 # Set working directory
 WORKDIR /app
 
-# Copy dependency files
+# Copy project files
 COPY pyproject.toml ./
+COPY proto ./proto
+COPY src ./src
 
-# Install dependencies
-RUN uv pip install --system -e .
+# Install dependencies (editable install)
+RUN uv pip install --system --extra-index-url https://download.pytorch.org/whl/cu121 -e ".[gpu]"
 
-# Compile proto files
-COPY proto/ ./proto/
+
+# Compile proto files into /app/src and fix imports for package
 RUN python3.13 -m grpc_tools.protoc \
     --proto_path=proto \
-    --python_out=src/embedding \
-    --grpc_python_out=src/embedding \
-    proto/embedding.proto
+    --python_out=src \
+    --grpc_python_out=src \
+    proto/embedding.proto && \
+    python3.13 - <<'PY'
+from pathlib import Path
+grpc_file = Path('src/embedding_pb2_grpc.py')
+if grpc_file.exists():
+    content = grpc_file.read_text()
+    content = content.replace('import embedding_pb2 as embedding__pb2', 'from . import embedding_pb2 as embedding__pb2')
+    grpc_file.write_text(content)
+PY
 
 # Runtime stage
-FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04 as runtime
+FROM nvidia/cuda:12.1.0-cudnn8-runtime-ubuntu22.04 AS runtime
 
 # Install Python 3.13
 RUN apt-get update && apt-get install -y \
@@ -52,26 +61,29 @@ RUN groupadd -r appuser && useradd -r -g appuser appuser
 # Set working directory
 WORKDIR /app
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --chown=appuser:appuser --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
+COPY --chown=appuser:appuser --from=builder /usr/local/bin /usr/local/bin
 
 # Copy application code
-COPY --from=builder /app/src ./src
-COPY --from=builder /app/proto ./proto
+COPY --chown=appuser:appuser pyproject.toml ./pyproject.toml
+COPY --chown=appuser:appuser --from=builder /app/src ./src
 
 # Set ownership
 RUN chown -R appuser:appuser /app
+
+# Hugging Face writable cache for non-root user
+ENV HF_HOME=/home/appuser/.cache/huggingface
+RUN mkdir -p /home/appuser/.cache/huggingface/hub && chown -R appuser:appuser /home/appuser/.cache
 
 # Switch to non-root user
 USER appuser
 
 # Expose port
-EXPOSE 81051
+EXPOSE 8351
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python3.13 -c "import grpc; grpc.insecure_channel('localhost:81051').channel_ready_future().result(timeout=5)"
+    CMD python3.13 -c "import grpc; grpc.insecure_channel('localhost:8351').channel_ready_future().result(timeout=5)"
 
-# Run the server
-CMD ["python3.13", "-m", "src.embedding.server"]
+# Run the server (package entry)
+CMD ["python", "-m", "src.server"]
