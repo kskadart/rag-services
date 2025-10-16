@@ -15,6 +15,7 @@ services:
       - GRPC_HOST=0.0.0.0
       - LOG_LEVEL=INFO
       - HF_HOME=/home/appuser/.cache/huggingface
+      - HF_TOKEN=${HF_TOKEN}
     restart: unless-stopped
     healthcheck:
       test: [

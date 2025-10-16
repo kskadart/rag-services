@@ -10,6 +10,8 @@
 *.pot
 *.pyc
 __pycache__/
+.pytest_cache/
+.ruff_cache/
 local_settings.py
 db.sqlite3
 media
