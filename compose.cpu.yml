@@ -31,6 +31,13 @@ services:
         limits:
           cpus: '4'
           memory: 8G
+    networks:
+      - rag-network
 
 volumes:
   huggingface-cache:
+
+networks:
+  rag-network:
+    name: arag-common-network
+    external: true
