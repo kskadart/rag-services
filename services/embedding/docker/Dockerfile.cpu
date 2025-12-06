@@ -1,61 +1,42 @@
-# CPU Dockerfile - Lightweight for development
-FROM python:3.13-slim as builder
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim AS builder
 
-# Install system dependencies
-RUN apt-get update && apt-get install -y \
-    gcc \
-    g++ \
-    && rm -rf /var/lib/apt/lists/*
+ENV UV_LINK_MODE=copy
 
-# Install UV
-RUN pip install uv
+RUN apt-get update && apt-get install -y gcc g++ && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
 WORKDIR /app
 
-# Copy dependency files
-COPY pyproject.toml ./
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+     uv sync --extra cpu --frozen --no-install-project
 
-# Install dependencies
-RUN uv pip install --system -e .
+COPY proto ./proto
+COPY src ./src
 
-# Compile proto files
-COPY proto/ ./proto/
-RUN python -m grpc_tools.protoc \
-    --proto_path=proto \
-    --python_out=src/embedding \
-    --grpc_python_out=src/embedding \
+RUN uv run python -m grpc_tools.protoc \
+    -Isrc=proto \
+    --python_out=. \
+    --grpc_python_out=. \
     proto/embedding.proto
 
-# Runtime stage
-FROM python:3.13-slim as runtime
+FROM python:3.13-slim AS runtime
 
-# Create non-root user
 RUN groupadd -r appuser && useradd -r -g appuser appuser
 
-# Set working directory
 WORKDIR /app
 
-# Copy installed packages from builder
-COPY --from=builder /usr/local/lib/python3.13/site-packages /usr/local/lib/python3.13/site-packages
-COPY --from=builder /usr/local/bin /usr/local/bin
+COPY --chown=appuser:appuser --from=builder /app /app
 
-# Copy application code
-COPY --from=builder /app/src ./src
-COPY --from=builder /app/proto ./proto
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="/app/.venv/bin:${PATH}"
 
-# Set ownership
-RUN chown -R appuser:appuser /app
+ENV HF_HOME=/home/appuser/.cache/huggingface
+RUN mkdir -p /home/appuser/.cache/huggingface/hub \
+    && chown -R appuser:appuser /home/appuser/.cache/huggingface
 
-# Switch to non-root user
 USER appuser
 
-# Expose port
-EXPOSE 81051
+EXPOSE 8351
 
-# Health check
-HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
-    CMD python -c "import grpc; grpc.insecure_channel('localhost:81051').channel_ready_future().result(timeout=5)"
-
-# Run the server
-CMD ["python", "-m", "src.embedding.server"]
+ENTRYPOINT []
+CMD ["python", "-m", "src.server"]

@@ -78,7 +78,7 @@ from embedding_pb2 import EmbedBatchRequest
 from embedding_pb2_grpc import EmbeddingServiceStub
 
 # Connect to service
-channel = grpc.insecure_channel('localhost:81051')
+channel = grpc.insecure_channel('localhost:8351')
 stub = EmbeddingServiceStub(channel)
 
 # Embed single text
@@ -109,7 +109,7 @@ embeddings = [list(emb.vector) for emb in response.embeddings]
 
 - `EMBEDDING_MODEL_NAME`: Model name (default: google/embeddinggemma-300m)
 - `DEVICE`: Device selection (auto/cuda/cpu)
-- `GRPC_PORT`: Server port (default: 81051)
+- `GRPC_PORT`: Server port (default: 8351)
 - `GRPC_HOST`: Server host (default: 0.0.0.0)
 - `LOG_LEVEL`: Logging level (default: INFO)
 
@@ -126,14 +126,14 @@ embeddings = [list(emb.vector) for emb in response.embeddings]
 
 ```bash
 # List services
-grpcurl -plaintext localhost:81051 list
+grpcurl -plaintext localhost:8351 list
 
 # Health check
-grpcurl -plaintext localhost:81051 grpc.health.v1.Health/Check
+grpcurl -plaintext localhost:8351 grpc.health.v1.Health/Check
 
 # Single embedding
 grpcurl -plaintext -d '{"text": "hello world", "max_length": 512, "normalize": true, "pooling_strategy": "mean"}' \
-  localhost:81051 embedding.EmbeddingService/EmbedText
+  localhost:8351 embedding.EmbeddingService/EmbedText
 ```
 
 ### Using Python Test Client
