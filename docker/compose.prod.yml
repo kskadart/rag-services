@@ -1,6 +1,6 @@
 services:
   embedding-service:
-    image: ghcr.io/${GITHUB_REPOSITORY}/embedding-service:${IMAGE_TAG:-latest}
+    image: ${IMAGE_TAG:-ghcr.io/kskada/rag-services/embedding-service:latest}
     container_name: rag-services-embedding
     ports:
       - "8351:8351"

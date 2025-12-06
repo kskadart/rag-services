@@ -3,6 +3,7 @@ name: Deploy
 on:
   push:
     branches: [main]
+  workflow_dispatch:
 
 env:
   REGISTRY: ghcr.io
@@ -16,16 +17,9 @@ jobs:
       contents: read
       packages: write
 
-    outputs:
-      image_tag: ${{ steps.short_sha.outputs.sha }}
-
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Get short SHA
-        id: short_sha
-        run: echo "sha=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
@@ -43,7 +37,7 @@ jobs:
         with:
           images: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
           tags: |
-            type=raw,value=${{ steps.short_sha.outputs.sha }}
+            type=sha,prefix=
             type=raw,value=latest,enable={{is_default_branch}}
 
       - name: Build and push Docker image
@@ -64,39 +58,53 @@ jobs:
     environment: production
 
     steps:
-      - name: Deploy via SSH
-        uses: appleboy/ssh-action@v1.2.0
-        env:
-          GITHUB_REPOSITORY: ${{ github.repository }}
-          IMAGE_TAG: ${{ needs.build-and-push.outputs.image_tag }}
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITHUB_ACTOR: ${{ github.actor }}
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create deploy directory
+        uses: appleboy/ssh-action@v1.0.3
         with:
           host: 51.250.84.40
           username: kskada
           key: ${{ secrets.SSH_PRIVATE_KEY }}
-          envs: GITHUB_REPOSITORY,IMAGE_TAG,HF_TOKEN,GITHUB_TOKEN,GITHUB_ACTOR
           script: |
-            set -e
-            
             if [ ! -d /opt/rag-services ]; then
               sudo mkdir -p /opt/rag-services
               sudo chown $USER:$USER /opt/rag-services
-              git clone https://github.com/$GITHUB_REPOSITORY.git /opt/rag-services
             fi
-            
+
+      - name: Copy docker-compose to server
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: 51.250.84.40
+          username: kskada
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          source: "docker/compose.prod.yml"
+          target: "/opt/rag-services"
+          strip_components: 1
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: 51.250.84.40
+          username: kskada
+          key: ${{ secrets.SSH_PRIVATE_KEY }}
+          script: |
             cd /opt/rag-services
-            git fetch origin main
-            git reset --hard origin/main
             
-            echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+            cat > .env << 'EOF'
+            IMAGE_TAG=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest
+            GITHUB_REPOSITORY=${{ github.repository }}
+            HF_TOKEN=${{ secrets.HF_TOKEN }}
+            EOF
             
-            export GITHUB_REPOSITORY="$GITHUB_REPOSITORY"
-            export IMAGE_TAG="$IMAGE_TAG"
-            export HF_TOKEN="$HF_TOKEN"
+            chmod 600 .env
             
-            docker compose -f docker/compose.prod.yml pull
-            docker compose -f docker/compose.prod.yml up -d
+            echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u ${{ github.actor }} --password-stdin
+            
+            docker network create arag-common-network 2>/dev/null || true
+            
+            docker compose -f compose.prod.yml pull
+            docker compose -f compose.prod.yml up -d --remove-orphans
             
             docker image prune -f
