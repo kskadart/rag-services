@@ -1,0 +1,41 @@
+services:
+  embedding-service:
+    image: ghcr.io/${GITHUB_REPOSITORY}/embedding-service:${IMAGE_TAG:-latest}
+    container_name: rag-services-embedding
+    ports:
+      - "8351:8351"
+    volumes:
+      - huggingface-cache:/home/appuser/.cache/huggingface
+    environment:
+      - EMBEDDING_MODEL_NAME=google/embeddinggemma-300m
+      - DEVICE=cpu
+      - GRPC_PORT=8351
+      - GRPC_HOST=0.0.0.0
+      - LOG_LEVEL=INFO
+      - HF_HOME=/home/appuser/.cache/huggingface
+      - HF_TOKEN=${HF_TOKEN}
+    restart: unless-stopped
+    healthcheck:
+      test: [
+        "CMD", "python", "-c",
+        "import grpc; grpc.insecure_channel('localhost:8351').channel_ready_future().result(timeout=5)"
+      ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 8G
+    networks:
+      - arag-common-network
+
+volumes:
+  huggingface-cache:
+
+networks:
+  arag-common-network:
+    external: true
+
