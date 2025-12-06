@@ -27,8 +27,8 @@ services:
     deploy:
       resources:
         limits:
-          cpus: '4'
-          memory: 8G
+          cpus: '2'
+          memory: 4G
     networks:
       - arag-common-network
 
