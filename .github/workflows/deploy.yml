@@ -79,7 +79,16 @@ jobs:
           envs: GITHUB_REPOSITORY,IMAGE_TAG,HF_TOKEN,GITHUB_TOKEN,GITHUB_ACTOR
           script: |
             set -e
+            
+            if [ ! -d /opt/rag-services ]; then
+              sudo mkdir -p /opt/rag-services
+              sudo chown $USER:$USER /opt/rag-services
+              git clone https://github.com/$GITHUB_REPOSITORY.git /opt/rag-services
+            fi
+            
             cd /opt/rag-services
+            git fetch origin main
+            git reset --hard origin/main
             
             echo "$GITHUB_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
             
