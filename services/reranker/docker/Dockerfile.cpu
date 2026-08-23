@@ -1,0 +1,42 @@
+FROM ghcr.io/astral-sh/uv:python3.13-trixie-slim AS builder
+
+ENV UV_LINK_MODE=copy
+
+RUN apt-get update && apt-get install -y gcc g++ && rm -rf /var/lib/apt/lists/*
+
+WORKDIR /app
+
+COPY pyproject.toml uv.lock ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+     uv sync --extra cpu --frozen --no-install-project
+
+COPY proto ./proto
+COPY src ./src
+
+RUN uv run python -m grpc_tools.protoc \
+    -Isrc=proto \
+    --python_out=. \
+    --grpc_python_out=. \
+    proto/reranker.proto
+
+FROM python:3.13-slim AS runtime
+
+RUN groupadd -r appuser && useradd -r -g appuser appuser
+
+WORKDIR /app
+
+COPY --chown=appuser:appuser --from=builder /app /app
+
+ENV VIRTUAL_ENV=/app/.venv
+ENV PATH="/app/.venv/bin:${PATH}"
+
+ENV HF_HOME=/home/appuser/.cache/huggingface
+RUN mkdir -p /home/appuser/.cache/huggingface/hub \
+    && chown -R appuser:appuser /home/appuser/.cache/huggingface
+
+USER appuser
+
+EXPOSE 8352
+
+ENTRYPOINT []
+CMD ["python", "-m", "src.server"]
