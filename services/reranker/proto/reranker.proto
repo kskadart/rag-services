@@ -1,0 +1,25 @@
+syntax = "proto3";
+
+package reranker;
+
+service RerankerService {
+  rpc Rerank(RerankRequest) returns (RerankResponse);
+  rpc HealthCheck(Empty) returns (HealthResponse);
+}
+
+message RerankRequest {
+  string query = 1;
+  repeated string texts = 2;
+}
+
+message RerankResponse {
+  repeated float scores = 1; // order = order of texts
+}
+
+message Empty {}
+
+message HealthResponse {
+  string status = 1;
+  string model_name = 2;
+  string device = 3;
+}

@@ -34,6 +34,41 @@ services:
     networks:
       - rag-network
 
+  reranker-service:
+    build:
+      context: ./services/reranker
+      dockerfile: docker/Dockerfile.cpu
+    container_name: rag-services-reranker-cpu
+    ports:
+      - "8352:8352"
+    volumes:
+      - huggingface-cache:/home/appuser/.cache/huggingface
+    environment:
+      - RERANKER_MODEL_NAME=BAAI/bge-reranker-v2-m3
+      - DEVICE=cpu
+      - GRPC_PORT=8352
+      - GRPC_HOST=0.0.0.0
+      - LOG_LEVEL=INFO
+      - HF_HOME=/home/appuser/.cache/huggingface
+      - HF_TOKEN=${HF_TOKEN:-}
+    restart: unless-stopped
+    healthcheck:
+      test: [
+        "CMD", "python", "-c",
+        "import grpc; grpc.channel_ready_future(grpc.insecure_channel('localhost:8352')).result(timeout=5)"
+      ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          cpus: '4'
+          memory: 6G
+    networks:
+      - rag-network
+
 volumes:
   huggingface-cache:
 

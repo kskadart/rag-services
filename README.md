@@ -5,7 +5,7 @@ Infrastructure and microservices supporting RAG and ARAG (Agentic RAG) applicati
 ## Services
 
 - **embedding** - High-performance gRPC-based embedding service using Google's EmbeddingGemma model
-- **reranker** - Coming soon
+- **reranker** - gRPC-based cross-encoder reranker service using BAAI's bge-reranker-v2-m3 model
 
 ## License
 
